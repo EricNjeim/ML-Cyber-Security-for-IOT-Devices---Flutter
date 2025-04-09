@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+//import 'home_page.dart'; // Assume you have this created
 
 void main() {
   runApp(const MyApp());
 }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'IoT Attack Detection',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
@@ -17,14 +23,62 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-class SignInPage extends StatelessWidget {
+
+class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final TextEditingController emailController = TextEditingController();
+  State<SignInPage> createState() => _SignInPageState();
+}
 
+class _SignInPageState extends State<SignInPage> {
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  bool isLoading = false;
+
+  Future<void> login() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://your-backend-ip-or-url/api/login'), // Replace with your real URL
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': emailController.text.trim(),
+          'password': passwordController.text.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final token = data['token'];
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('jwt_token', token);
+
+       // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Login failed. Please check credentials.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error connecting to server.')),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black87,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -33,24 +87,23 @@ class SignInPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                const Text("IOT", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-
+                const Text("IoT Attack Detection", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
                 const SizedBox(height: 30),
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.black87,
+                    color: Colors.black,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Column(
                     children: [
                       const Text(
-                        "Create an account",
+                        "Login",
                         style: TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        "Enter your email to sign up for this app",
+                        "Enter your email and password to log in",
                         style: TextStyle(color: Colors.greenAccent),
                       ),
                       const SizedBox(height: 20),
@@ -64,57 +117,26 @@ class SignInPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {},
+                      TextField(
+                        controller: passwordController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          hintText: "Password",
+                          filled: true,
+                          fillColor: Colors.green[100],
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      isLoading
+                          ? const CircularProgressIndicator(color: Colors.greenAccent)
+                          : ElevatedButton(
+                        onPressed: login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.greenAccent,
                           minimumSize: const Size(double.infinity, 50),
                         ),
-                        child: const Text("Continue", style: TextStyle(color: Colors.black)),
-                      ),
-                      const SizedBox(height: 16),
-                      const Row(
-                        children: [
-                          Expanded(child: Divider(color: Colors.greenAccent)),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Text("or", style: TextStyle(color: Colors.white)),
-                          ),
-                          Expanded(child: Divider(color: Colors.greenAccent)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.g_mobiledata, color: Colors.white),
-                        label: const Text("Continue with Google", style: TextStyle(color: Colors.white)),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white),
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.apple, color: Colors.white),
-                        label: const Text("Continue with Apple", style: TextStyle(color: Colors.white)),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white),
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text.rich(
-                        TextSpan(
-                          text: 'By clicking continue, you agree to our ',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                          children: [
-                            TextSpan(text: 'Terms of Service', style: TextStyle(decoration: TextDecoration.underline)),
-                            TextSpan(text: ' and '),
-                            TextSpan(text: 'Privacy Policy', style: TextStyle(decoration: TextDecoration.underline)),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
+                        child: const Text("Login", style: TextStyle(color: Colors.black)),
                       ),
                     ],
                   ),
@@ -124,8 +146,6 @@ class SignInPage extends StatelessWidget {
           ),
         ),
       ),
-      backgroundColor: Colors.black87,
     );
   }
 }
-
