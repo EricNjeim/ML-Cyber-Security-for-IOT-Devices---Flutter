@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "487495695448",
+    "project_id": "iot-framework-af56f",
+    "storage_bucket": "iot-framework-af56f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:487495695448:android:a4fd81f39633b28e165e2d",
+        "android_client_info": {
+          "package_name": "com.example.iotframework"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKfpNI9mhv87xpFcANFW1KMcSUpMgi9go"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
