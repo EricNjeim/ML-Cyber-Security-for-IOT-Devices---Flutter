@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 import 'package:iotframework/services/auth_service.dart';
+import 'package:vector_math/vector_math.dart' as vector;
 
 // Network Traffic model for attack logs
 class NetworkTraffic {
@@ -91,6 +92,7 @@ class _HomePageState extends State<HomePage> {
     const LogsTab(),
     const AnalyticsTab(),
     const DevicesTab(),
+    const NetworkMapTab(),
   ];
 
   @override
@@ -105,6 +107,7 @@ class _HomePageState extends State<HomePage> {
         currentIndex: _currentIndex,
         selectedItemColor: Colors.greenAccent,
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         onTap: (index) {
           setState(() {
             _currentIndex = index;
@@ -124,8 +127,12 @@ class _HomePageState extends State<HomePage> {
             label: 'Analytics',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
+            icon: Icon(Icons.devices),
             label: 'Devices',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.network_check),
+            label: 'Network',
           ),
         ],
       ),
@@ -154,7 +161,7 @@ class _DashboardTabState extends State<DashboardTab> {
   List<NetworkTraffic> recentAttacks = [];
   bool isLoading = false;
   final AuthService _authService = AuthService();
-  final String apiBaseUrl = 'https://quest.hydra-polaris.ts.net/api';
+  final String apiBaseUrl = 'http://192.168.101.55:3000/api';
 
   @override
   void initState() {
@@ -175,17 +182,18 @@ class _DashboardTabState extends State<DashboardTab> {
       );
 
       print('GET network-traffic status (Dashboard): ${response.statusCode}');
-      
+
       if (response.body.isNotEmpty) {
-        print('GET network-traffic response (Dashboard): ${response.body.substring(0, min(500, response.body.length))}...');
+        print(
+            'GET network-traffic response (Dashboard): ${response.body.substring(0, min(500, response.body.length))}...');
       }
 
       if (response.statusCode == 200) {
         final dynamic decodedData = jsonDecode(response.body);
         print('Decoded data type (Dashboard): ${decodedData.runtimeType}');
-        
+
         List<dynamic> trafficData = [];
-        
+
         // Handle different response formats
         if (decodedData is List) {
           // If response is directly a list
@@ -193,7 +201,7 @@ class _DashboardTabState extends State<DashboardTab> {
           print('Response is a List with ${trafficData.length} items');
         } else if (decodedData is Map) {
           print('Response is a Map with keys: ${decodedData.keys.toList()}');
-          
+
           // Try different keys that might contain the data
           if (decodedData.containsKey('data')) {
             final data = decodedData['data'];
@@ -219,22 +227,25 @@ class _DashboardTabState extends State<DashboardTab> {
               final value = decodedData[key];
               if (value is List && value.isNotEmpty) {
                 trafficData = value;
-                print('Found list in key "$key" with ${trafficData.length} items');
+                print(
+                    'Found list in key "$key" with ${trafficData.length} items');
                 break;
               }
             }
-            
+
             // If still no list found, try to convert the map to a list of one item
             if (trafficData.isEmpty) {
-              print('No list found in the response, treating the whole response as one log');
+              print(
+                  'No list found in the response, treating the whole response as one log');
               // Check if the map itself can be treated as a log entry
-              if (decodedData.containsKey('id') || decodedData.containsKey('detected_as')) {
+              if (decodedData.containsKey('id') ||
+                  decodedData.containsKey('detected_as')) {
                 trafficData = [decodedData];
               }
             }
           }
         }
-        
+
         if (trafficData.isEmpty) {
           print('No usable data found in the response (Dashboard)');
           setState(() {
@@ -243,14 +254,14 @@ class _DashboardTabState extends State<DashboardTab> {
           });
           return;
         }
-        
+
         setState(() {
           try {
             // Print first item to debug
             if (trafficData.isNotEmpty) {
               print('First item (Dashboard): ${trafficData.first}');
             }
-            
+
             recentAttacks = trafficData
                 .map((item) {
                   try {
@@ -264,9 +275,10 @@ class _DashboardTabState extends State<DashboardTab> {
                 .where((item) => item != null)
                 .cast<NetworkTraffic>()
                 .toList();
-                
-            print('Successfully parsed ${recentAttacks.length} logs for dashboard');
-            
+
+            print(
+                'Successfully parsed ${recentAttacks.length} logs for dashboard');
+
             // Sort by timestamp and take most recent 5
             if (recentAttacks.isNotEmpty) {
               recentAttacks.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -502,7 +514,7 @@ class _LogsTabState extends State<LogsTab> {
   List<NetworkTraffic> attackLogs = [];
   bool isLoading = true;
   final AuthService _authService = AuthService();
-  final String apiBaseUrl = 'https://quest.hydra-polaris.ts.net/api';
+  final String apiBaseUrl = 'http://192.168.101.55:3000/api';
 
   @override
   void initState() {
@@ -523,17 +535,18 @@ class _LogsTabState extends State<LogsTab> {
       );
 
       print('GET network-traffic status: ${response.statusCode}');
-      
+
       if (response.body.isNotEmpty) {
-        print('GET network-traffic response: ${response.body.substring(0, min(500, response.body.length))}');
+        print(
+            'GET network-traffic response: ${response.body.substring(0, min(500, response.body.length))}');
       }
 
       if (response.statusCode == 200) {
         final dynamic decodedData = jsonDecode(response.body);
         print('Decoded data type: ${decodedData.runtimeType}');
-        
+
         List<dynamic> trafficData = [];
-        
+
         // Handle different response formats
         if (decodedData is List) {
           // If response is directly a list
@@ -541,7 +554,7 @@ class _LogsTabState extends State<LogsTab> {
           print('Response is a List with ${trafficData.length} items');
         } else if (decodedData is Map) {
           print('Response is a Map with keys: ${decodedData.keys.toList()}');
-          
+
           // Try different keys that might contain the data
           if (decodedData.containsKey('data')) {
             final data = decodedData['data'];
@@ -567,22 +580,25 @@ class _LogsTabState extends State<LogsTab> {
               final value = decodedData[key];
               if (value is List && value.isNotEmpty) {
                 trafficData = value;
-                print('Found list in key "$key" with ${trafficData.length} items');
+                print(
+                    'Found list in key "$key" with ${trafficData.length} items');
                 break;
               }
             }
-            
+
             // If still no list found, try to convert the map to a list of one item
             if (trafficData.isEmpty) {
-              print('No list found in the response, treating the whole response as one log');
+              print(
+                  'No list found in the response, treating the whole response as one log');
               // Check if the map itself can be treated as a log entry
-              if (decodedData.containsKey('id') || decodedData.containsKey('detected_as')) {
+              if (decodedData.containsKey('id') ||
+                  decodedData.containsKey('detected_as')) {
                 trafficData = [decodedData];
               }
             }
           }
         }
-        
+
         if (trafficData.isEmpty) {
           print('No usable data found in the response');
           setState(() {
@@ -591,14 +607,14 @@ class _LogsTabState extends State<LogsTab> {
           });
           return;
         }
-        
+
         setState(() {
           try {
             // Print first item to debug
             if (trafficData.isNotEmpty) {
               print('First item: ${trafficData.first}');
             }
-            
+
             attackLogs = trafficData
                 .map((item) {
                   try {
@@ -612,9 +628,9 @@ class _LogsTabState extends State<LogsTab> {
                 .where((item) => item != null)
                 .cast<NetworkTraffic>()
                 .toList();
-                
+
             print('Successfully parsed ${attackLogs.length} logs');
-            
+
             // Sort by timestamp and take most recent 20
             if (attackLogs.isNotEmpty) {
               attackLogs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -634,7 +650,8 @@ class _LogsTabState extends State<LogsTab> {
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to fetch attack logs: ${response.statusCode}'),
+            content:
+                Text('Failed to fetch attack logs: ${response.statusCode}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -828,7 +845,7 @@ class DevicesTab extends StatefulWidget {
 class _DevicesTabState extends State<DevicesTab> {
   final List<Device> devices = [];
   bool isLoading = true;
-  final String apiBaseUrl = 'https://quest.hydra-polaris.ts.net/api';
+  final String apiBaseUrl = 'http://192.168.101.55:3000/api';
   final AuthService _authService = AuthService();
 
   @override
@@ -1097,24 +1114,143 @@ class _DevicesTabState extends State<DevicesTab> {
     try {
       final headers = await _authService.getAuthHeaders();
       final response = await http.get(
-        Uri.parse('$apiBaseUrl/devices/ping/${device.ipAddress}'),
+        Uri.parse('$apiBaseUrl/devices/${device.id}/ping'),
         headers: headers,
       );
 
-      final bool isReachable = response.statusCode == 200;
+      print('Ping response status: ${response.statusCode}');
+      print('Ping response body: ${response.body}');
 
-      final resultSnackBar = SnackBar(
-        content: Text(
-            '${device.name} is ${isReachable ? "reachable" : "unreachable"}'),
-        backgroundColor: isReachable ? Colors.green : Colors.red,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(resultSnackBar);
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        // Extract ping result
+        final pingResult = responseData['ping_result'];
+        final status = pingResult['status'];
+        final packetLoss = pingResult['packet_loss'];
+        final latency = pingResult['latency'];
+
+        final isReachable = status == 'online';
+
+        // Show detailed ping result in a dialog
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text("Ping Results: ${device.name}"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Status: ${isReachable ? 'Online ✓' : 'Offline ✗'}",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isReachable ? Colors.green : Colors.red)),
+                const SizedBox(height: 8),
+                Text("Packet Loss: $packetLoss"),
+                const SizedBox(height: 8),
+                if (latency != null) ...[
+                  Text("Latency:"),
+                  Text("  Avg: ${latency['avg']} ms"),
+                  Text("  Min: ${latency['min']} ms"),
+                  Text("  Max: ${latency['max']} ms"),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Failed to ping ${device.name}: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      final resultSnackBar = SnackBar(
-        content: Text('Error pinging ${device.name}: $e'),
-        backgroundColor: Colors.red,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error pinging ${device.name}: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
-      ScaffoldMessenger.of(context).showSnackBar(resultSnackBar);
+    }
+  }
+
+  Future<void> pingAllDevices() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final headers = await _authService.getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/devices/ping-all'),
+        headers: headers,
+      );
+
+      print('Ping all response status: ${response.statusCode}');
+      print('Ping all response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final results = responseData['results'] as List;
+
+        // Update device status based on ping results
+        for (var result in results) {
+          final deviceData = result['device'];
+          final pingResult = result['ping_result'];
+
+          // Find the device in our list
+          final deviceId = deviceData['id'].toString();
+          final deviceIndex = devices.indexWhere((d) => d.id == deviceId);
+
+          if (deviceIndex >= 0) {
+            setState(() {
+              // Update device status
+              devices[deviceIndex] = devices[deviceIndex].copyWith(
+                status: pingResult['status'] ?? 'unknown',
+                packetLoss: pingResult['packet_loss'] ?? 'N/A',
+                latencyAvg: pingResult['latency']?['avg']?.toString() ?? 'N/A',
+                latencyMin: pingResult['latency']?['min']?.toString() ?? 'N/A',
+                latencyMax: pingResult['latency']?['max']?.toString() ?? 'N/A',
+              );
+            });
+          }
+        }
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All devices pinged successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to ping all devices: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error pinging all devices: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -1161,44 +1297,186 @@ class _DevicesTabState extends State<DevicesTab> {
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
                     final device = devices[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: ListTile(
-                        title: Text(device.name),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("IP: ${device.ipAddress}"),
-                            Text("MAC: ${device.macAddress}"),
-                          ],
+                    return Dismissible(
+                      key: Key(
+                          device.id.isNotEmpty ? device.id : device.ipAddress),
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20.0),
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
                         ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.network_ping,
-                                  color: Colors.blue),
-                              onPressed: () => pingDevice(device),
-                              tooltip: "Ping device",
+                      ),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (direction) async {
+                        return await showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: const Text("Confirm"),
+                              content: Text(
+                                  "Are you sure you want to delete ${device.name}?"),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text("CANCEL"),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  child: const Text("DELETE"),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      onDismissed: (direction) {
+                        // Remove device from list
+                        setState(() {
+                          devices.removeAt(index);
+                        });
+
+                        // Call API to delete the device
+                        deleteDevice(device);
+
+                        // Show a snackbar
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${device.name} deleted'),
+                            action: SnackBarAction(
+                              label: 'UNDO',
+                              onPressed: () {
+                                // Add the device back
+                                setState(() {
+                                  devices.insert(index, device);
+                                });
+                              },
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.green),
-                              onPressed: () => editDevice(device, index),
-                              tooltip: "Edit device",
-                            ),
-                          ],
+                          ),
+                        );
+                      },
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: ListTile(
+                          title: Text(device.name),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("IP: ${device.ipAddress}"),
+                              Text("MAC: ${device.macAddress}"),
+                              if (device.status != 'unknown')
+                                Text("Status: ${device.status}",
+                                    style: TextStyle(
+                                        color: device.status == 'online'
+                                            ? Colors.green
+                                            : Colors.red,
+                                        fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.network_ping,
+                                    color: Colors.blue),
+                                onPressed: () => pingDevice(device),
+                                tooltip: "Ping device",
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.edit, color: Colors.green),
+                                onPressed: () => editDevice(device, index),
+                                tooltip: "Edit device",
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: addNewDevice,
-        backgroundColor: Colors.greenAccent,
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Ping All button
+          FloatingActionButton(
+            heroTag: "pingAll",
+            onPressed: pingAllDevices,
+            backgroundColor: Colors.blue,
+            mini: true,
+            child: const Icon(Icons.network_check),
+            tooltip: "Ping all devices",
+          ),
+          const SizedBox(height: 16),
+          // Add Device button
+          FloatingActionButton(
+            heroTag: "addDevice",
+            onPressed: addNewDevice,
+            backgroundColor: Colors.greenAccent,
+            child: const Icon(Icons.add),
+            tooltip: "Add new device",
+          ),
+        ],
       ),
     );
+  }
+
+  // Add a method to delete devices
+  Future<void> deleteDevice(Device device) async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      final headers = await _authService.getAuthHeaders();
+      final response = await http.delete(
+        Uri.parse(
+            '$apiBaseUrl/devices/${device.id.isNotEmpty ? device.id : device.ipAddress}'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Success
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Device ${device.name} deleted successfully')),
+        );
+      } else if (response.statusCode == 401) {
+        // Token expired or invalid
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session expired. Please log in again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        await _authService.logout();
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      } else {
+        // Error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Failed to delete device: ${response.statusCode} - ${response.body}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting device: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 }
 
@@ -1208,6 +1486,11 @@ class Device {
   String ipAddress;
   String macAddress;
   String userId;
+  String status;
+  String packetLoss;
+  String latencyAvg;
+  String latencyMin;
+  String latencyMax;
 
   Device({
     this.id = '',
@@ -1215,7 +1498,38 @@ class Device {
     required this.ipAddress,
     required this.macAddress,
     this.userId = '',
+    this.status = 'unknown',
+    this.packetLoss = 'N/A',
+    this.latencyAvg = 'N/A',
+    this.latencyMin = 'N/A',
+    this.latencyMax = 'N/A',
   });
+
+  Device copyWith({
+    String? id,
+    String? name,
+    String? ipAddress,
+    String? macAddress,
+    String? userId,
+    String? status,
+    String? packetLoss,
+    String? latencyAvg,
+    String? latencyMin,
+    String? latencyMax,
+  }) {
+    return Device(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ipAddress: ipAddress ?? this.ipAddress,
+      macAddress: macAddress ?? this.macAddress,
+      userId: userId ?? this.userId,
+      status: status ?? this.status,
+      packetLoss: packetLoss ?? this.packetLoss,
+      latencyAvg: latencyAvg ?? this.latencyAvg,
+      latencyMin: latencyMin ?? this.latencyMin,
+      latencyMax: latencyMax ?? this.latencyMax,
+    );
+  }
 }
 
 class DeviceDialog extends StatefulWidget {
@@ -1274,7 +1588,7 @@ class _DeviceDialogState extends State<DeviceDialog> {
               controller: ipController,
               decoration: const InputDecoration(
                 labelText: 'IP Address',
-                hintText: 'Enter IP address (e.g. 192.168.1.100)',
+                hintText: 'Enter IP address (e.g. 192.168.101.55)',
               ),
             ),
             const SizedBox(height: 16),
@@ -1319,4 +1633,418 @@ class _DeviceDialogState extends State<DeviceDialog> {
       ],
     );
   }
+}
+
+// ----- NetworkMapTab -----
+class NetworkMapTab extends StatefulWidget {
+  const NetworkMapTab({super.key});
+
+  @override
+  State<NetworkMapTab> createState() => _NetworkMapTabState();
+}
+
+class _NetworkMapTabState extends State<NetworkMapTab> {
+  bool isLoading = true;
+  final AuthService _authService = AuthService();
+  final String apiBaseUrl = 'http://192.168.101.55:3000/api';
+  List<Device> devices = [];
+
+  // Router details
+  final RouterNode router = RouterNode(
+    id: 'router',
+    name: 'Router',
+    ipAddress: '192.168.101.1',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    fetchDevicesAndPingStatus();
+  }
+
+  Future<void> fetchDevicesAndPingStatus() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      // First fetch devices
+      final headers = await _authService.getAuthHeaders();
+      final devicesResponse = await http.get(
+        Uri.parse('$apiBaseUrl/devices'),
+        headers: headers,
+      );
+
+      if (devicesResponse.statusCode == 200) {
+        final dynamic decodedData = jsonDecode(devicesResponse.body);
+        List<dynamic> devicesData = [];
+
+        if (decodedData is Map && decodedData.containsKey('devices')) {
+          devicesData = decodedData['devices'] as List<dynamic>;
+        } else if (decodedData is List) {
+          devicesData = decodedData;
+        }
+
+        setState(() {
+          devices = devicesData.map((item) {
+            return Device(
+              id: item['id']?.toString() ?? '',
+              name: item['name'] ?? 'Unknown Device',
+              ipAddress: item['ip_address'] ?? '',
+              macAddress: item['mac_address'] ?? '',
+              userId: item['user_id']?.toString() ?? '',
+            );
+          }).toList();
+        });
+
+        // Then perform ping-all to get statuses
+        await pingAllDevices();
+      } else {
+        // Handle error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Failed to fetch devices: ${devicesResponse.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching devices: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> pingAllDevices() async {
+    try {
+      final headers = await _authService.getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/devices/ping-all'),
+        headers: headers,
+      );
+
+      print('Ping all response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final results = responseData['results'] as List;
+
+        // Update device status based on ping results
+        for (var result in results) {
+          final deviceData = result['device'];
+          final pingResult = result['ping_result'];
+
+          // Find the device in our list
+          final deviceId = deviceData['id'].toString();
+          final deviceIndex = devices.indexWhere((d) => d.id == deviceId);
+
+          if (deviceIndex >= 0) {
+            setState(() {
+              // Update device status
+              devices[deviceIndex] = devices[deviceIndex].copyWith(
+                status: pingResult['status'] ?? 'unknown',
+                packetLoss: pingResult['packet_loss'] ?? 'N/A',
+                latencyAvg: pingResult['latency']?['avg']?.toString() ?? 'N/A',
+                latencyMin: pingResult['latency']?['min']?.toString() ?? 'N/A',
+                latencyMax: pingResult['latency']?['max']?.toString() ?? 'N/A',
+              );
+            });
+          }
+        }
+      } else {
+        // Handle error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to ping devices: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error pinging devices: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error pinging devices: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Network Topology Map',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: devices.isEmpty
+                      ? const Center(child: Text('No devices found'))
+                      : NetworkMapWidget(devices: devices, router: router),
+                ),
+              ],
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: fetchDevicesAndPingStatus,
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.refresh),
+        tooltip: 'Refresh Network Map',
+      ),
+    );
+  }
+}
+
+class RouterNode {
+  final String id;
+  final String name;
+  final String ipAddress;
+
+  RouterNode({
+    required this.id,
+    required this.name,
+    required this.ipAddress,
+  });
+}
+
+class NetworkMapWidget extends StatelessWidget {
+  final List<Device> devices;
+  final RouterNode router;
+
+  const NetworkMapWidget({
+    super.key,
+    required this.devices,
+    required this.router,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      boundaryMargin: const EdgeInsets.all(double.infinity),
+      minScale: 0.1,
+      maxScale: 2.0,
+      child: Center(
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: CustomPaint(
+            painter: NetworkMapPainter(devices: devices, router: router),
+            child: Container(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class NetworkMapPainter extends CustomPainter {
+  final List<Device> devices;
+  final RouterNode router;
+
+  NetworkMapPainter({
+    required this.devices,
+    required this.router,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = min(size.width, size.height) * 0.35;
+
+    // Draw router in the center
+    _drawRouter(canvas, center);
+
+    // Draw devices in a circle around the router
+    final deviceCount = devices.length;
+    if (deviceCount > 0) {
+      for (int i = 0; i < deviceCount; i++) {
+        final angle = 2 * pi * i / deviceCount;
+        final deviceOffset = Offset(
+          center.dx + radius * cos(angle),
+          center.dy + radius * sin(angle),
+        );
+
+        // Draw connection line first (so it's behind the nodes)
+        _drawConnection(
+            canvas, center, deviceOffset, devices[i].status == 'online');
+
+        // Draw the device
+        _drawDevice(canvas, deviceOffset, devices[i]);
+      }
+    }
+  }
+
+  void _drawRouter(Canvas canvas, Offset position) {
+    // Router background
+    final Paint routerPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(position, 30, routerPaint);
+
+    // Router icon
+    final TextPainter textPainter = TextPainter(
+      text: const TextSpan(
+        text: "🌐",
+        style: TextStyle(
+          fontSize: 30,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    textPainter.layout();
+    textPainter.paint(
+        canvas,
+        Offset(
+          position.dx - textPainter.width / 2,
+          position.dy - textPainter.height / 2,
+        ));
+
+    // Router label
+    final TextPainter labelPainter = TextPainter(
+      text: TextSpan(
+        text: router.name,
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    labelPainter.layout();
+    labelPainter.paint(
+        canvas,
+        Offset(
+          position.dx - labelPainter.width / 2,
+          position.dy + 35,
+        ));
+  }
+
+  void _drawDevice(Canvas canvas, Offset position, Device device) {
+    // Device background with color based on status
+    final Color deviceColor =
+        device.status == 'online' ? Colors.green : Colors.red;
+
+    final Paint devicePaint = Paint()
+      ..color = deviceColor
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(position, 25, devicePaint);
+
+    // Device icon
+    final String deviceIcon = _getDeviceIcon(device.name);
+    final TextPainter iconPainter = TextPainter(
+      text: TextSpan(
+        text: deviceIcon,
+        style: const TextStyle(
+          fontSize: 20,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    iconPainter.layout();
+    iconPainter.paint(
+        canvas,
+        Offset(
+          position.dx - iconPainter.width / 2,
+          position.dy - iconPainter.height / 2,
+        ));
+
+    // Device name
+    final TextPainter namePainter = TextPainter(
+      text: TextSpan(
+        text: device.name,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    namePainter.layout();
+    namePainter.paint(
+        canvas,
+        Offset(
+          position.dx - namePainter.width / 2,
+          position.dy + 30,
+        ));
+
+    // IP address
+    final TextPainter ipPainter = TextPainter(
+      text: TextSpan(
+        text: device.ipAddress,
+        style: const TextStyle(
+          fontSize: 10,
+          color: Colors.black54,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+
+    ipPainter.layout();
+    ipPainter.paint(
+        canvas,
+        Offset(
+          position.dx - ipPainter.width / 2,
+          position.dy + 45,
+        ));
+  }
+
+  void _drawConnection(Canvas canvas, Offset start, Offset end, bool isOnline) {
+    final Paint linePaint = Paint()
+      ..color = isOnline ? Colors.green : Colors.red
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(start, end, linePaint);
+  }
+
+  String _getDeviceIcon(String deviceName) {
+    final String nameLower = deviceName.toLowerCase();
+
+    if (nameLower.contains('camera')) return '📷';
+    if (nameLower.contains('thermostat')) return '🌡️';
+    if (nameLower.contains('sensor')) return '🔍';
+    if (nameLower.contains('lock')) return '🔒';
+    if (nameLower.contains('light') || nameLower.contains('lamp')) return '💡';
+    if (nameLower.contains('speaker')) return '🔊';
+    if (nameLower.contains('tv')) return '📺';
+
+    // Default icon
+    return '📱';
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

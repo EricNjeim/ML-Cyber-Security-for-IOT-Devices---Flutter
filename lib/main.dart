@@ -45,7 +45,7 @@ class _MyAppState extends State<MyApp> {
   String? _fcmToken;
 
   // Adjust this to your server's base URL
-  final String serverUrl = 'https://quest.hydra-polaris.ts.net';
+  final String serverUrl = 'http://192.168.101.55:3000';
 
   // Create a FlutterLocalNotificationsPlugin instance
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =

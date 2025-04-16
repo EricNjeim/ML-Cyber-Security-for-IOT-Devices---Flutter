@@ -10,9 +10,25 @@ class AuthService {
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   final String _tokenKey = 'jwt_token';
-  final String _apiBaseUrl = 'https://quest.hydra-polaris.ts.net/api';
+  final String _apiBaseUrl = 'http://192.168.101.55:3000/api';
 
-  // Store token securely
+
+
+  bool _isJwtExpired(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return true; // malformed → treat as expired
+
+    final payload = parts[1]
+        .padRight(parts[1].length + (4 - parts[1].length % 4) % 4, '='); // padding
+    final decoded = utf8.decode(base64Url.decode(payload));
+    final Map<String, dynamic> map = jsonDecode(decoded);
+
+    if (!map.containsKey('exp')) return true; // no exp → treat as expired
+
+    final expiry = DateTime.fromMillisecondsSinceEpoch(map['exp'] * 1000);
+    return DateTime.now().isAfter(expiry);
+  }
+
   Future<void> storeToken(String token) async {
     await _secureStorage.write(key: _tokenKey, value: token);
 
@@ -29,8 +45,17 @@ class AuthService {
   // Check if user is logged in
   Future<bool> isLoggedIn() async {
     final token = await getToken();
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) return false;
+
+    if (_isJwtExpired(token)) {
+      // force a logout to clear the expired token
+      await logout();
+      return false;
+    }
+
+    return true;
   }
+
 
   // Login user and store token
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -57,7 +82,8 @@ class AuthService {
           'token': token,
         };
       } else {
-        return {
+        logout()
+;        return {
           'success': false,
           'message':
               'Login failed. Status: ${response.statusCode}, Message: ${response.body}',
