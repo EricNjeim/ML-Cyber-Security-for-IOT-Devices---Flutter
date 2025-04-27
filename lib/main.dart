@@ -1,64 +1,60 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:iotframework/home_page.dart';
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:iotframework/services/auth_service.dart';
-
-// Add these Firebase imports
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:iotframework/core/di/injection_container.dart';
+import 'package:iotframework/core/routing/app_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-
-// 1) Import for local notifications
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'firebase_options.dart';
 
-// 2) Top-level or static function for background FCM messages
+/// Top-level function for background Firebase Cloud Messaging (FCM) message handling
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you're using other Firebase services in the background,
-  // make sure to initialize Firebase here as well.
   await Firebase.initializeApp();
   print("Handling a background message: ${message.messageId}");
 }
 
+/// Entry point of the application
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 3) Initialize Firebase before runApp
+  // Initialize Firebase
   await Firebase.initializeApp();
 
-  // 4) Set the background messaging handler early
+  // Set up background message handler for FCM
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // 5) Then run your app
-  runApp(const MyApp());
+  // Run the app
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
-// 6) Convert MyApp to a StatefulWidget to handle FCM setup in initState
-class MyApp extends StatefulWidget {
+/// The main application widget
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> {
   String? _fcmToken;
-
-  // Adjust this to your server's base URL
-  final String serverUrl = 'http://192.168.101.55:3000';
-
-  // Create a FlutterLocalNotificationsPlugin instance
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+  final secureStorage = const FlutterSecureStorage();
 
   @override
   void initState() {
     super.initState();
-    _initLocalNotifications(); // (A) Initialize local notifications
-    _initFCM(); // (B) Initialize Firebase Messaging
+    _initLocalNotifications();
+    _initFCM();
+    _initAuthRedirect();
   }
 
-  /// (A) Set up local notifications
+  /// Initialize local notifications
   Future<void> _initLocalNotifications() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -73,16 +69,15 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // Handle when user taps the local notification (in foreground)
+  /// Handle notification selection
   void _onSelectNotification(NotificationResponse response) {
     print("Local Notification tapped: ${response.payload}");
-    // If you want to navigate to a specific screen:
-    // Navigator.push(context, MaterialPageRoute(builder: (_) => SomeScreen()));
+    // Navigation can be implemented here based on the notification payload
   }
 
-  /// (B) Initialize Firebase Messaging: request permissions (iOS), get token, etc.
+  /// Initialize Firebase Cloud Messaging
   Future<void> _initFCM() async {
-    // On iOS, you must request permission
+    // Request permission for notifications on iOS
     NotificationSettings settings =
         await FirebaseMessaging.instance.requestPermission(
       alert: true,
@@ -99,25 +94,25 @@ class _MyAppState extends State<MyApp> {
       print('User declined or has not accepted permission');
     }
 
-    // Retrieve the FCM token
+    // Get FCM token for device
     String? token = await FirebaseMessaging.instance.getToken();
     setState(() {
       _fcmToken = token;
     });
     print("FCM Token: $_fcmToken");
 
-    // Optionally, send the token to your backend so it can send you notifications
+    // Store FCM token in secure storage
     if (_fcmToken != null) {
-      _sendTokenToBackend(_fcmToken!);
+      await secureStorage.write(key: 'fcm_token', value: _fcmToken);
     }
 
-    // Foreground messages: show a local notification or update UI
+    // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Foreground message received!');
       print('Message data: ${message.data}');
       if (message.notification != null) {
         print('Notification: ${message.notification}');
-        // Show a local notification to mimic normal push behavior in foreground
+        // Show a local notification to handle foreground notifications
         _showForegroundNotification(
           message.notification!.title,
           message.notification!.body,
@@ -125,18 +120,17 @@ class _MyAppState extends State<MyApp> {
       }
     });
 
-    // When a user taps on the notification (background)
+    // Handle notification tap when app is in background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('Notification clicked! Data: ${message.data}');
-      // Navigate to a specific screen if needed
-      // e.g., Navigator.push(context, MaterialPageRoute(builder: (_) => SomeScreen()));
+      // Navigation logic can be implemented here
     });
 
-    // (Optional) If the app was killed and opened via a notification:
+    // Check if app was opened from a notification
     _checkInitialMessage();
   }
 
-  /// Display a local notification for a foreground FCM message
+  /// Display a local notification for foreground messages
   Future<void> _showForegroundNotification(String? title, String? body) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
@@ -160,206 +154,34 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  /// Check if the app was launched from a terminated state via notification
+  /// Check if app was launched from a notification
   Future<void> _checkInitialMessage() async {
     RemoteMessage? initialMessage =
         await FirebaseMessaging.instance.getInitialMessage();
 
     if (initialMessage != null) {
       print("App launched from notification: ${initialMessage.data}");
-      // Navigate to a particular screen if needed:
-      // Navigator.push(context, MaterialPageRoute(builder: (_) => SomeScreen()));
+      // Navigation logic can be implemented here
     }
   }
 
-  /// Example method to send the FCM token to your Flask (or other) backend
-  Future<void> _sendTokenToBackend(String token) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$serverUrl/api/register_token'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'token': token}),
-      );
-
-      if (response.statusCode == 200) {
-        print('Token registered successfully on the server.');
-      } else {
-        print('Error registering token: ${response.body}');
-      }
-    } catch (e) {
-      print('Exception occurred while sending token to server: $e');
-    }
+  /// Initialize the auth redirect service
+  void _initAuthRedirect() {
+    // Access the auth redirect service to initialize it
+    ref.read(ServiceLocator.authRedirectServiceProvider);
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'IoT Attack Detection',
+      title: 'SecureIOT',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.greenAccent),
         useMaterial3: true,
       ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const SignInPage(),
-        '/home': (context) => const HomePage(),
-      },
-    );
-  }
-}
-
-// Keep your existing SignInPage and logic here
-class SignInPage extends StatefulWidget {
-  const SignInPage({super.key});
-
-  @override
-  State<StatefulWidget> createState() => _SignInPageState();
-}
-
-class _SignInPageState extends State<SignInPage> {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  bool isLoading = false;
-  final AuthService _authService = AuthService();
-
-  @override
-  void initState() {
-    super.initState();
-    _checkLoginStatus();
-  }
-
-  Future<void> _checkLoginStatus() async {
-    final bool isLoggedIn = await _authService.isLoggedIn();
-    if (isLoggedIn) {
-      // Navigate to HomePage if already logged in
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
-      }
-    }
-  }
-
-  Future<void> login() async {
-    setState(() => isLoading = true);
-
-    try {
-      final result = await _authService.login(
-          emailController.text, passwordController.text);
-
-      if (result['success']) {
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] ?? 'Login failed')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black87,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 40),
-                const Text(
-                  "IoT Attack Detection",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.greenAccent,
-                  ),
-                ),
-                const SizedBox(height: 30),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        "Login",
-                        style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Enter your email and password to log in",
-                        style: TextStyle(color: Colors.greenAccent),
-                      ),
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: emailController,
-                        decoration: InputDecoration(
-                          hintText: "email@domain.com",
-                          filled: true,
-                          fillColor: Colors.green[100],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: passwordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: "Password",
-                          filled: true,
-                          fillColor: Colors.green[100],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      isLoading
-                          ? const CircularProgressIndicator(
-                              color: Colors.greenAccent,
-                            )
-                          : ElevatedButton(
-                              onPressed: login,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.greenAccent,
-                                minimumSize: const Size(double.infinity, 50),
-                              ),
-                              child: const Text(
-                                "Login",
-                                style: TextStyle(color: Colors.black),
-                              ),
-                            ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      navigatorKey: AppRouter.navigatorKey,
+      onGenerateRoute: AppRouter.generateRoute,
+      initialRoute: AppRouter.splashRoute, // Start with splash screen
     );
   }
 }
