@@ -82,3 +82,4 @@ final recentAttacksProvider =
     repository: ref.read(ServiceLocator.recentAttacksRepositoryProvider),
   );
 });
+ 

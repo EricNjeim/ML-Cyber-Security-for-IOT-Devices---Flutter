@@ -4,16 +4,19 @@ import 'package:iotframework/features/dashboard/presentation/screens/dashboard_s
 import 'package:iotframework/presentation/features/auth/screens/login_screen.dart';
 import 'package:iotframework/presentation/features/auth/screens/splash_screen.dart';
 import 'package:iotframework/features/devices/presentation/screens/devices_screen.dart';
-import 'package:iotframework/features/network_map/presentation/screens/network_map_screen.dart';
 import 'package:iotframework/features/security/presentation/screens/security_logs_screen.dart';
+import 'package:iotframework/features/security/presentation/screens/attack_logs_screen.dart';
+import 'package:iotframework/features/analytics/presentation/screens/analytics_screen.dart';
 
 /// Application router for navigation
 class AppRouter {
   static const String mainRoute = AppConstants.mainRoute;
   static const String loginRoute = AppConstants.loginRoute;
-  static const String networkRoute = '/network';
   static const String splashRoute = AppConstants.splashRoute;
   static const String logsRoute = '/logs';
+  static const String todayAttacksRoute = '/attacks/attacks/today';
+  static const String weekAttacksRoute = '/attacks/attacks/week';
+  static const String monthAttacksRoute = '/attacks/attacks/month';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -26,13 +29,31 @@ class AppRouter {
             builder: (_) => MainScreen(initialTab: tabIndex));
       case loginRoute:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
-      case networkRoute:
-        return MaterialPageRoute(
-            builder: (_) => const MainScreen(initialTab: 4));
       case logsRoute:
         return MaterialPageRoute(builder: (_) => const SecurityLogsScreen());
       case splashRoute:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
+      case todayAttacksRoute:
+        return MaterialPageRoute(
+          builder: (_) => const AttackLogsScreen(
+            period: 'Today',
+            endpoint: '/attacks/attacks/today',
+          ),
+        );
+      case weekAttacksRoute:
+        return MaterialPageRoute(
+          builder: (_) => const AttackLogsScreen(
+            period: 'Week',
+            endpoint: '/attacks/attacks/week',
+          ),
+        );
+      case monthAttacksRoute:
+        return MaterialPageRoute(
+          builder: (_) => const AttackLogsScreen(
+            period: 'Month',
+            endpoint: '/attacks/attacks/month',
+          ),
+        );
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
@@ -84,9 +105,8 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const DashboardScreen(),
     const SecurityLogsScreen(),
-    const Center(child: Text('Analytics')),
+    const AnalyticsScreen(),
     const DevicesScreen(),
-    const NetworkMapScreen(),
   ];
 
   @override
@@ -124,10 +144,6 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.devices),
             label: 'Devices',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.network_check),
-            label: 'Network',
           ),
         ],
       ),

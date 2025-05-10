@@ -26,6 +26,7 @@ import 'package:iotframework/domain/usecases/attacks/resolve_attack.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:iotframework/core/services/notification_service.dart';
+import 'package:iotframework/domain/usecases/devices/scan_device_ports.dart';
 
 /// This class is responsible for setting up the dependency injection container
 class ServiceLocator {
@@ -154,6 +155,10 @@ class ServiceLocator {
 
   static final pingAllDevicesProvider = Provider<PingAllDevices>((ref) {
     return PingAllDevices(ref.read(deviceRepositoryProvider));
+  });
+
+  static final scanDevicePortsProvider = Provider<ScanDevicePorts>((ref) {
+    return ScanDevicePorts(ref.read(deviceRepositoryProvider));
   });
 
   // Attack use cases

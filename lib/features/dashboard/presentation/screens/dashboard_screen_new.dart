@@ -8,8 +8,9 @@ import 'package:iotframework/domain/models/network_traffic.dart';
 import 'package:iotframework/domain/repositories/device_repository.dart';
 import 'package:iotframework/features/dashboard/presentation/widgets/dashboard_card.dart';
 import 'package:iotframework/features/notifications/notification_permission_manager.dart';
-import 'package:iotframework/features/security/presentation/screens/attack_logs_screen.dart';
 import 'package:iotframework/presentation/features/attacks/widgets/recent_attacks_widget.dart';
+import 'package:iotframework/presentation/features/attacks/providers/recent_attacks_provider.dart'
+    as attacks_provider;
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -19,18 +20,11 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  final List<Map<String, dynamic>> attackSummaryData = const [
-    {'title': 'Today', 'count': 5},
-    {'title': 'Week', 'count': 20},
-    {'title': 'Month', 'count': 80},
-  ];
-
   bool _isPinging = false;
 
   @override
   void initState() {
     super.initState();
-    // Auto-ping the network when dashboard loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _performNetworkScan();
       _requestNotificationPermission();
@@ -43,7 +37,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     await notificationManager.requestPermissionAndRegisterToken(context);
   }
 
-  // Perform network scan that updates both dashboard and map
+  // Perform network scan that updates the dashboard
   Future<void> _performNetworkScan() async {
     if (_isPinging) return;
 
@@ -69,13 +63,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final recentAttacksAsync = ref.watch(recentAttacksProvider);
     final devicesAsync = ref.watch(devicesProvider);
     final pingAllAsync = ref.watch(pingAllDevicesProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.refresh(recentAttacksProvider);
         await _performNetworkScan();
       },
       child: SingleChildScrollView(
@@ -95,9 +87,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 24.0),
               buildNetworkStatus(devicesAsync, pingAllAsync),
               const SizedBox(height: 24.0),
-              buildSecurityStatus(),
-              const SizedBox(height: 24.0),
-              buildRecentAttacks(recentAttacksAsync),
+              buildRecentAttacks(),
               const SizedBox(height: 16.0), // Extra padding at bottom
             ],
           ),
@@ -107,6 +97,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget buildAttackSummary() {
+    // Get the real-time data from providers
+    final todayAttacksAsync = ref.watch(todayAttacksProvider);
+    final weekAttacksAsync = ref.watch(weekAttacksProvider);
+    final monthAttacksAsync = ref.watch(monthAttacksProvider);
+
+    // Create dynamic summary data with explicit types
+    final List<Map<String, dynamic>> attackSummaryData = [
+      {
+        'title': 'Today',
+        'count': todayAttacksAsync.when(
+          data: (result) => result.fold(
+            (data) => data.length,
+            (_) => 0,
+          ),
+          loading: () => 0,
+          error: (_, __) => 0,
+        ),
+        'route': AppRouter.todayAttacksRoute,
+      },
+      {
+        'title': 'Week',
+        'count': weekAttacksAsync.when(
+          data: (result) => result.fold(
+            (data) => data.length,
+            (_) => 0,
+          ),
+          loading: () => 0,
+          error: (_, __) => 0,
+        ),
+        'route': AppRouter.weekAttacksRoute,
+      },
+      {
+        'title': 'Month',
+        'count': monthAttacksAsync.when(
+          data: (result) => result.fold(
+            (data) => data.length,
+            (_) => 0,
+          ),
+          loading: () => 0,
+          error: (_, __) => 0,
+        ),
+        'route': AppRouter.monthAttacksRoute,
+      },
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -118,16 +153,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               style: TextStyle(
                 fontSize: 18.0,
                 fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton(
-              onPressed: () => _showAllAttackLogs(),
-              child: Text(
-                'View All',
-                style: TextStyle(
-                  color: Colors.green[700],
-                  fontWeight: FontWeight.bold,
-                ),
               ),
             ),
           ],
@@ -144,7 +169,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 width: 120,
                 margin: const EdgeInsets.only(right: 16.0),
                 child: InkWell(
-                  onTap: () => _showAttackLogsForPeriod(item['title']),
+                  onTap: () {
+                    final route = item['route'] as String;
+                    Navigator.pushNamed(context, route);
+                  },
                   borderRadius: BorderRadius.circular(12),
                   child: DashboardCard(
                     title: item['title'],
@@ -192,47 +220,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // Method to show attack logs for a specific time period
-  void _showAttackLogsForPeriod(String period) {
-    // Determine appropriate endpoint based on period
-    String endpoint;
-    switch (period.toLowerCase()) {
-      case 'today':
-        endpoint = '/attacks/daily';
-        break;
-      case 'week':
-        endpoint = '/attacks/weekly';
-        break;
-      case 'month':
-        endpoint = '/attacks/monthly';
-        break;
-      default:
-        endpoint = '/attacks';
-    }
-
-    // Navigate to logs screen with the appropriate endpoint
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AttackLogsScreen(
-          period: period,
-          endpoint: endpoint,
-        ),
-      ),
-    );
-  }
-
-  // Method to show all attack logs
-  void _showAllAttackLogs() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AttackLogsScreen(
-          period: 'All Time',
-          endpoint: '/attacks',
-        ),
-      ),
-    );
-  }
-
   Widget buildNetworkStatus(
     AsyncValue<dynamic> devicesAsync,
     AsyncValue<dynamic> pingAllAsync,
@@ -250,19 +237,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            TextButton.icon(
-              onPressed: () => AppRouter.navigateTo(AppRouter.networkRoute),
-              icon: const Icon(Icons.fullscreen, size: 20),
-              label: const Text('View Full Map'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.green[700],
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 8.0),
         SizedBox(
-          height: 160, // Further reduced height
+          height: 160,
           child: DashboardCard(
             title: '',
             child: Stack(
@@ -497,112 +476,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget buildSecurityStatus() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Security Status',
-          style: TextStyle(
-            fontSize: 18.0,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8.0),
-        SizedBox(
-          height: 120,
-          child: DashboardCard(
-            title: '',
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Row(
-                children: [
-                  // Security status icon
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.security,
-                      color: Colors.green,
-                      size: 30,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Status details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Protected',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          'Last scan: ${_getFormattedTime()}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Security status bar
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: const LinearProgressIndicator(
-                            value: 0.85,
-                            backgroundColor: Colors.red,
-                            color: Colors.green,
-                            minHeight: 8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Action button
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate to security settings or initiate a deep scan
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Initiating deep scan...'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.greenAccent,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 12),
-                    ),
-                    child: const Text('Scan Now'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getFormattedTime() {
-    final now = DateTime.now();
-    return '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
-  }
-
-  Widget buildRecentAttacks(
-    AsyncValue<Result<List<NetworkTraffic>>> recentAttacksAsync,
-  ) {
+  Widget buildRecentAttacks() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -614,11 +488,84 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 16.0),
-        const SizedBox(
+        SizedBox(
           height: 300,
-          child: RecentAttacksWidget(),
+          child: ErrorHandlingRecentAttacksWidget(),
         ),
       ],
+    );
+  }
+
+  /// Error handling wrapper for the RecentAttacksWidget
+  /// This ensures we handle any exceptions gracefully
+  Widget ErrorHandlingRecentAttacksWidget() {
+    return Consumer(
+      builder: (context, ref, child) {
+        // Use a try-catch block to handle any exceptions
+        try {
+          return const RecentAttacksWidget();
+        } catch (e) {
+          // Return a friendly error card if any exception occurs
+          return Card(
+            elevation: 4,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Unable to load network activity',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Error: ${e.toString()}',
+                    style: const TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Try to refresh the provider
+                      try {
+                        final provider = ref.read(
+                            attacks_provider.recentAttacksProvider.notifier);
+                        provider.fetchRecentAttacks();
+                      } catch (refreshError) {
+                        // If refresh fails, show a snackbar
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Could not refresh: $refreshError'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.greenAccent,
+                      foregroundColor: Colors.black,
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      },
     );
   }
 }

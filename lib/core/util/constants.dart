@@ -1,7 +1,7 @@
 /// Constants used throughout the application
 class AppConstants {
   // API
-  static const String apiBaseUrl = 'http://192.168.100.76:3000/api';
+  static const String apiBaseUrl = 'http://192.168.0.102:3000/api';
 
   // Routes
   static const String mainRoute = '/';

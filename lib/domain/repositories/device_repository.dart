@@ -1,5 +1,6 @@
 import 'package:iotframework/core/util/result.dart';
 import 'package:iotframework/domain/entities/device.dart';
+import 'package:iotframework/domain/models/port_scan_result.dart';
 
 /// Interface for device operations
 abstract class DeviceRepository {
@@ -23,6 +24,9 @@ abstract class DeviceRepository {
 
   /// Ping all devices in the network
   Future<Result<Map<String, PingResult>>> pingAllDevices();
+
+  /// Scan ports on a device
+  Future<Result<PortScanResult>> scanDevicePorts(String ipAddress);
 }
 
 /// Result of a ping operation

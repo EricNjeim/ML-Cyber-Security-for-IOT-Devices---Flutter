@@ -104,3 +104,4 @@ class RecentAttacksWidget extends ConsumerWidget {
     );
   }
 }
+ 

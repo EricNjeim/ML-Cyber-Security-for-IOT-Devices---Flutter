@@ -6,6 +6,7 @@ import 'package:iotframework/core/network/network_service.dart';
 import 'package:iotframework/core/util/result.dart';
 import 'package:iotframework/data/models/device_model.dart';
 import 'package:iotframework/domain/entities/device.dart';
+import 'package:iotframework/domain/models/port_scan_result.dart';
 import 'package:iotframework/domain/repositories/device_repository.dart';
 
 /// Implementation of [DeviceRepository]
@@ -338,6 +339,52 @@ class DeviceRepositoryImpl implements DeviceRepository {
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Perform a port scan on a device
+  @override
+  Future<Result<PortScanResult>> scanDevicePorts(String ipAddress) async {
+    try {
+      // Find device id by IP address
+      final devices = await getDevices();
+      Device? deviceWithMatchingIp;
+      for (final device in devices) {
+        if (device.ipAddress == ipAddress) {
+          deviceWithMatchingIp = device;
+          break;
+        }
+      }
+
+      if (deviceWithMatchingIp != null) {
+        // Use device ID endpoint
+        final response = await _networkService.get(
+          '/devices/${deviceWithMatchingIp.id}/scan',
+          options: Options(
+            receiveTimeout: const Duration(seconds: 60),
+            sendTimeout: const Duration(seconds: 60),
+          ),
+        );
+
+        if (response.statusCode == 200) {
+          final data = response.data;
+          return Result.success(PortScanResult.fromJson(data));
+        } else {
+          return Result.failure(
+            ServerFailure(message: 'Failed to scan ports on device'),
+          );
+        }
+      } else {
+        return Result.failure(
+          ServerFailure(message: 'Device not found with IP: $ipAddress'),
+        );
+      }
+    } on UnauthorizedException {
+      return Result.failure(const AuthenticationFailure());
+    } catch (e) {
+      return Result.failure(
+        ServerFailure(message: 'Failed to scan ports: ${e.toString()}'),
+      );
     }
   }
 }

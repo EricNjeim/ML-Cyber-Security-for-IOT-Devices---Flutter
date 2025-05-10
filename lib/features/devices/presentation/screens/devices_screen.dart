@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iotframework/core/providers/providers.dart';
 import 'package:iotframework/domain/entities/device.dart';
+import 'package:iotframework/domain/models/port_scan_result.dart';
 import 'package:iotframework/domain/repositories/device_repository.dart';
 import 'package:iotframework/features/devices/presentation/screens/device_edit_screen.dart';
 import 'package:iotframework/core/di/injection_container.dart';
@@ -17,6 +18,7 @@ class DevicesScreen extends ConsumerStatefulWidget {
 class _DevicesScreenState extends ConsumerState<DevicesScreen> {
   String? _selectedDeviceIp;
   bool _isPingingAll = false;
+  String? _portScanDeviceIp;
 
   @override
   Widget build(BuildContext context) {
@@ -375,6 +377,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
 
   Widget _buildDeviceCard(Device device) {
     final isPinging = _selectedDeviceIp == device.ipAddress;
+    final isPortScanning = _portScanDeviceIp == device.ipAddress;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
@@ -478,10 +481,17 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _buildPingButton(device.ipAddress),
+                Column(
+                  children: [
+                    _buildPingButton(device.ipAddress),
+                    const SizedBox(height: 8),
+                    _buildScanButton(device.ipAddress),
+                  ],
+                ),
               ],
             ),
             if (isPinging) _buildPingResult(device.ipAddress),
+            if (isPortScanning) _buildPortScanResult(device.ipAddress),
           ],
         ),
       ),
@@ -649,20 +659,25 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                   const Icon(Icons.error, color: Colors.red),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      failure.message,
-                      style: const TextStyle(color: Colors.red),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          failure.message,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            setState(() {
+                              _selectedDeviceIp = null;
+                            });
+                          },
+                          color: Colors.grey,
+                          iconSize: 20,
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () {
-                      setState(() {
-                        _selectedDeviceIp = null;
-                      });
-                    },
-                    color: Colors.grey,
-                    iconSize: 20,
                   ),
                 ],
               );
@@ -745,5 +760,246 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     } else {
       return 'Just now';
     }
+  }
+
+  void _scanDevicePorts(String ipAddress) {
+    setState(() {
+      _portScanDeviceIp = ipAddress;
+      _selectedDeviceIp = null; // Close ping results if open
+    });
+    ref.refresh(portScanProvider(ipAddress));
+  }
+
+  Widget _buildPortScanResult(String ipAddress) {
+    final portScanAsync = ref.watch(portScanProvider(ipAddress));
+
+    // Find the device name from the IP address for better display
+    final devicesAsync = ref.watch(devicesProvider);
+    String deviceName = "Unknown Device";
+
+    if (devicesAsync is AsyncData) {
+      devicesAsync.value?.fold(
+        (devices) {
+          for (final device in devices) {
+            if (device.ipAddress == ipAddress) {
+              deviceName = device.name;
+              break;
+            }
+          }
+        },
+        (_) {},
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: portScanAsync.when(
+        data: (result) {
+          return result.fold(
+            (portScanResult) {
+              final isSuccess = portScanResult.status == 'success';
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Port Scan Results',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: isSuccess ? Colors.black : Colors.red,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          setState(() {
+                            _portScanDeviceIp = null;
+                          });
+                        },
+                        color: Colors.grey,
+                        iconSize: 20,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Device: $deviceName',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'IP: ${portScanResult.ipAddress}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    'Port Range: ${portScanResult.portRange}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Text(
+                    'Open Ports: ${portScanResult.totalOpen}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  if (portScanResult.openPorts.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    const Text(
+                      'Open Ports:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...portScanResult.openPorts.map((port) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  port.port.toString(),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue.shade800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  port.service,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ] else if (isSuccess) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'No open ports found in the scanned range.',
+                      style: TextStyle(fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                  if (!isSuccess) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Scan failed: ${portScanResult.status}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
+                ],
+              );
+            },
+            (failure) {
+              // Check if the failure is related to the device not being found
+              final bool isDeviceNotFound =
+                  failure.message.contains('Device not found');
+
+              return Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.red),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isDeviceNotFound
+                              ? 'Device ID not found'
+                              : 'Port scan failed',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
+                          ),
+                        ),
+                        if (isDeviceNotFound)
+                          const Text(
+                            'This device needs to be registered with the system before scanning ports.',
+                            style: TextStyle(color: Colors.red),
+                          )
+                        else
+                          Text(
+                            failure.message,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      setState(() {
+                        _portScanDeviceIp = null;
+                      });
+                    },
+                    color: Colors.grey,
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              children: [
+                CircularProgressIndicator(strokeWidth: 2),
+                SizedBox(height: 8),
+                Text('Scanning ports...'),
+              ],
+            ),
+          ),
+        ),
+        error: (error, stack) => Text(
+          'Error scanning ports: $error',
+          style: const TextStyle(color: Colors.red),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanButton(String ipAddress) {
+    final isScanning = _portScanDeviceIp == ipAddress;
+
+    return ElevatedButton.icon(
+      onPressed: isScanning ? null : () => _scanDevicePorts(ipAddress),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue.shade100,
+        foregroundColor: Colors.blue.shade800,
+        disabledBackgroundColor: Colors.grey.shade300,
+      ),
+      icon: const Icon(Icons.radar, size: 16),
+      label: Text(isScanning ? 'Scanning...' : 'Scan Ports'),
+    );
   }
 }
